@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import * as git from './git';
 import { loadConfig } from './config';
+import * as git from './git';
 import { error, log } from './log';
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -34,7 +34,7 @@ import { error, log } from './log';
 
     log(`The JIRA ticket ID is: ${ticket}`);
 
-    git.writeJiraTicket(ticket, config);
+    git.writeJiraTicket(ticket, gitRoot, config);
   } catch (err: unknown) {
     if (typeof err === 'string') {
       error(err);

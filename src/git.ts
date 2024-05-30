@@ -1,6 +1,6 @@
+import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as cp from 'child_process';
 import { JPCMConfig } from './config';
 import { debug, log } from './log';
 
@@ -203,19 +203,20 @@ function insertJiraTicketIntoMessage(messageInfo: MessageInfo, jiraTicket: strin
 export type GitRevParseResult = {
   prefix: string;
   gitCommonDir: string;
+  gitDir: string;
 };
 
 export function gitRevParse(cwd = process.cwd(), gitRoot = ''): GitRevParseResult {
   const args = [];
 
+  args.push('rev-parse', '--show-prefix', '--git-common-dir', '--git-dir');
+
   // If git root is specified, checking existing work tree
   if (gitRoot !== '' && gitRoot !== '.') {
     log(`Git root is specified as ${gitRoot}`);
-
-    args.push('--git-dir', gitRoot);
+    // add configured gitRoot as git-dir
+    args.push(gitRoot);
   }
-
-  args.push('rev-parse', '--show-prefix', '--git-common-dir');
 
   // https://github.com/typicode/husky/issues/580
   // https://github.com/typicode/husky/issues/587
@@ -225,14 +226,14 @@ export function gitRevParse(cwd = process.cwd(), gitRoot = ''): GitRevParseResul
     throw new Error(stderr.toString());
   }
 
-  const [prefix, gitCommonDir] = stdout
+  const [prefix, gitCommonDir, gitDir] = stdout
     .toString()
     .split('\n')
     .map((s) => s.trim())
     // Normalize for Windows
     .map((s) => s.replace(/\\\\/, '/'));
 
-  return { prefix, gitCommonDir };
+  return { prefix, gitCommonDir, gitDir };
 }
 
 export function getRoot(gitRoot: string): string {
@@ -240,7 +241,7 @@ export function getRoot(gitRoot: string): string {
 
   const cwd = process.cwd();
 
-  const { gitCommonDir } = gitRevParse(cwd, gitRoot);
+  const { gitCommonDir, gitDir } = gitRevParse(cwd, gitRoot);
 
   // Git rev-parse returns unknown options as is.
   // If we get --absolute-git-dir in the output,
@@ -251,7 +252,8 @@ export function getRoot(gitRoot: string): string {
     throw new Error('Husky requires Git >= 2.13.0, please upgrade Git');
   }
 
-  return path.resolve(cwd, gitCommonDir);
+  // If gitDir is not present, use common
+  return path.resolve(cwd, gitDir ?? gitCommonDir);
 }
 
 export function getBranchName(gitRoot: string): string {
@@ -286,10 +288,10 @@ export function getJiraTicket(branchName: string, config: JPCMConfig): string | 
   return jiraTicket ? jiraTicket.toUpperCase() : null;
 }
 
-export function writeJiraTicket(jiraTicket: string, config: JPCMConfig): void {
+export function writeJiraTicket(jiraTicket: string, gitRoot: string, config: JPCMConfig): void {
   debug('writeJiraTicket');
 
-  const messageFilePath = getMsgFilePath(config.gitRoot);
+  const messageFilePath = getMsgFilePath(gitRoot);
   let message;
 
   // Read file with commit message
